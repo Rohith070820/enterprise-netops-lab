@@ -11,6 +11,7 @@ STP prevents this by turning the switch network into a TREE:
 3. Links used as root-port links FORWARD. Every other switch-to-switch link is BLOCKED.
 
 If a forwarding link fails, STP recalculates and a blocked link takes over.
+A switch with no path left to the root becomes the root of its own little "island".
 We compute the RESULT of STP; we do not replay its timers or messages.
 """
 import networkx as nx
@@ -41,23 +42,32 @@ def compute_stp(g: nx.Graph, priorities: dict[str, int] | None = None,
     prio = DESIGNED_PRIORITY if priorities is None else priorities
     s = switch_graph(g, failed)
     bid = {n: (prio.get(n, DEFAULT_PRIORITY), BRIDGE_MAC[n]) for n in s}
-    root = min(s, key=bid.get)
+    root = min(s, key=bid.get, default=None)
 
     for a, b in s.edges:
         s.edges[a, b]["cost"] = COST[s.edges[a, b]["capacity_mbps"]]
-    root_cost = nx.single_source_dijkstra_path_length(s, root, weight="cost")
 
-    root_ports = {}
-    for bridge in s:
-        if bridge == root:
-            continue
-        best = min(s.neighbors(bridge), key=lambda n: (root_cost[n] + s.edges[bridge, n]["cost"], bid[n]))
-        root_ports[bridge] = best
+    root_ports, cut_off = {}, []
+    for island in nx.connected_components(s):     # normally just one: the whole switch network
+        island_root = min(island, key=bid.get)    # an island cut off from the root elects its own
+        if root not in island:
+            cut_off.extend(island)
+        root_cost = nx.single_source_dijkstra_path_length(s, island_root, weight="cost")
+        for bridge in island - {island_root}:
+            best = min(s.neighbors(bridge), key=lambda n: (root_cost[n] + s.edges[bridge, n]["cost"], bid[n]))
+            root_ports[bridge] = best
 
     forwarding = {tuple(sorted((b, n))) for b, n in root_ports.items()}
     blocked = {tuple(sorted(e)) for e in s.edges} - forwarding
     return {"root": root, "bridge_id": bid, "root_ports": root_ports,
-            "forwarding": sorted(forwarding), "blocked": sorted(blocked)}
+            "forwarding": sorted(forwarding), "blocked": sorted(blocked), "cut_off": sorted(cut_off)}
+
+
+def active_topology(g: nx.Graph, priorities: dict[str, int] | None = None) -> nx.Graph:
+    """The network traffic can actually use: every working cable except the ones STP blocked."""
+    active = g.copy()
+    active.remove_edges_from(compute_stp(g, priorities)["blocked"])
+    return active
 
 
 def show(title: str, result: dict) -> None:
@@ -67,6 +77,8 @@ def show(title: str, result: dict) -> None:
         print(f"  {b:<8} reaches the root via {via}")
     print("  FORWARDING:", ", ".join(f"{a}<->{b}" for a, b in result["forwarding"]))
     print("  BLOCKED:   ", ", ".join(f"{a}<->{b}" for a, b in result["blocked"]))
+    if result["cut_off"]:
+        print("  CUT OFF from the root:", ", ".join(result["cut_off"]))
 
 
 if __name__ == "__main__":
@@ -80,3 +92,6 @@ if __name__ == "__main__":
     show("2. DEFAULT priorities: lowest MAC wins", compute_stp(g, priorities={}))
     print()
     show("3. DESIGNED, after ACCESS-2<->DIST-1 fails", compute_stp(g, failed=(("ACCESS-2", "DIST-1"),)))
+    print()
+    show("4. DESIGNED, after BOTH ACCESS-1 uplinks fail",
+         compute_stp(g, failed=(("ACCESS-1", "DIST-1"), ("ACCESS-1", "DIST-2"))))

@@ -1,3 +1,4 @@
+from netops.policy import ACL
 from netops.telemetry import Flow, flow_path, generate_flows, link_utilization
 from netops.topology import build_campus
 
@@ -36,3 +37,16 @@ def test_denied_flow_loads_links_only_up_to_the_gateway():
 def test_no_traffic_means_zero_utilization():
     df = link_utilization(build_campus(), [])
     assert df["utilization_pct"].sum() == 0
+
+
+def test_deleting_a_rule_turns_allowed_traffic_into_denied():
+    g = build_campus()
+    erp = Flow("fin-pc-1", "fin-srv", "erp", 80.0)
+    without_finance_rule = [r for r in ACL if r.name != "fin-to-fin-server"]
+    assert flow_path(g, erp)[1] == "ALLOWED"
+    assert flow_path(g, erp, without_finance_rule)[1] == "DENIED"
+
+
+def test_denied_server_flow_is_dropped_at_its_first_layer_3_hop():
+    path, status = flow_path(build_campus(), Flow("eng-srv", "internet", "update", 10.0))   # servers: implicit deny
+    assert (status, path) == ("DENIED", ["eng-srv", "CORE"])                             # no distribution hop

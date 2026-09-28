@@ -1,7 +1,7 @@
 import networkx as nx
 
-from netops.paths import find_path
-from netops.stp import compute_stp, switch_graph
+from netops.paths import fail_link, find_path
+from netops.stp import active_topology, compute_stp, switch_graph
 from netops.topology import build_campus
 
 
@@ -51,3 +51,28 @@ def test_traffic_paths_follow_the_spanning_tree():
     path = find_path(g, "ACCESS-2", "CORE")
     for a, b in zip(path, path[1:]):
         assert tuple(sorted((a, b))) in r["forwarding"]
+
+
+def test_nothing_is_cut_off_in_the_designed_network():
+    assert compute_stp(build_campus())["cut_off"] == []
+
+
+def test_switch_cut_off_from_the_root_becomes_its_own_island():
+    r = compute_stp(build_campus(), failed=(("ACCESS-1", "DIST-1"), ("ACCESS-1", "DIST-2")))
+    assert r["root"] == "CORE" and r["cut_off"] == ["ACCESS-1"]
+    assert "ACCESS-1" not in r["root_ports"]
+
+
+def test_active_topology_removes_exactly_the_blocked_links():
+    g = build_campus()
+    active = active_topology(g)
+    removed = {tuple(sorted(e)) for e in g.edges} - {tuple(sorted(e)) for e in active.edges}
+    assert sorted(removed) == compute_stp(g)["blocked"]
+    assert nx.is_tree(switch_graph(active))
+
+
+def test_wrong_root_sends_failover_traffic_the_long_way_through_an_access_switch():
+    g = fail_link(build_campus(), "ACCESS-2", "DIST-1")
+    assert find_path(active_topology(g), "ACCESS-2", "CORE") == ["ACCESS-2", "DIST-2", "CORE"]
+    detour = find_path(active_topology(g, priorities={}), "ACCESS-2", "CORE")
+    assert detour == ["ACCESS-2", "DIST-2", "ACCESS-1", "DIST-1", "CORE"]

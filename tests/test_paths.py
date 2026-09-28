@@ -1,4 +1,4 @@
-from netops.paths import fail_device, fail_link, find_path
+from netops.paths import degrade_link, fail_device, fail_link, find_path
 from netops.topology import build_campus
 
 
@@ -31,3 +31,15 @@ def test_failures_do_not_change_the_original_network():
     g = build_campus()
     fail_link(g, "ACCESS-1", "DIST-1")
     assert g.has_edge("ACCESS-1", "DIST-1")
+
+
+def test_powered_off_device_has_no_path():
+    assert find_path(fail_device(build_campus(), "fin-srv"), "fin-pc-1", "fin-srv") is None
+
+
+def test_a_degraded_link_still_carries_traffic_and_the_original_is_untouched():
+    g = build_campus()
+    bad = degrade_link(g, "ACCESS-1", "DIST-1", loss_pct=8.0)
+    assert bad.edges["ACCESS-1", "DIST-1"]["extra_loss_pct"] == 8.0
+    assert "extra_loss_pct" not in g.edges["ACCESS-1", "DIST-1"]
+    assert find_path(bad, "fin-pc-1", "fin-srv") == find_path(g, "fin-pc-1", "fin-srv")

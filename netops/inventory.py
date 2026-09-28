@@ -63,11 +63,16 @@ def build_inventory(g: nx.Graph) -> dict[str, Device]:
 
 
 def port_mode(g: nx.Graph, a: str, b: str) -> str:
-    """Links to end devices are access ports; links between network devices are trunks."""
+    """Links to end devices are access ports; links between switches are trunks.
+    Links to the edge router (and beyond it) are ROUTED: plain IP, no VLAN tags."""
+    if {g.nodes[a]["role"], g.nodes[b]["role"]} & {"router", "internet"}:
+        return "routed"
     return "access" if g.edges[a, b]["kind"] in ("access-port", "server-port") else "trunk"
 
 
 def vlans_on_link(g: nx.Graph, inventory: dict[str, Device], a: str, b: str) -> list[int]:
+    if port_mode(g, a, b) == "routed":
+        return []  # VLANs end at the router
     if port_mode(g, a, b) == "access":
         device = a if a in inventory else b
         return [inventory[device].vlan]

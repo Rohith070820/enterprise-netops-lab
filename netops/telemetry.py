@@ -7,6 +7,7 @@ the topology, and add up the load on every link:
     utilization % = (sum of Mbps of all flows crossing the link) / link capacity
 
 Flows the ACL denies still travel up to the gateway, then get dropped there.
+For users that is their distribution switch; servers hang off the core, so for them it is the core.
 """
 import random
 from dataclasses import dataclass
@@ -15,8 +16,10 @@ import networkx as nx
 import pandas as pd
 
 from netops.paths import find_path
-from netops.policy import evaluate
+from netops.policy import ACL, Rule, evaluate
 from netops.topology import build_campus
+
+L3_LAYERS = ("distribution", "core", "edge")   # devices that route, so an ACL can drop traffic there
 
 # Typical demand per endpoint, in Mbps. Each endpoint stands in for its
 # department's users on that switch, so the numbers are group totals.
@@ -47,22 +50,22 @@ def generate_flows(seed: int = 42, extra: list[Flow] | None = None) -> list[Flow
     return flows + (extra or [])
 
 
-def flow_path(g: nx.Graph, flow: Flow) -> tuple[list[str], str]:
+def flow_path(g: nx.Graph, flow: Flow, acl: list[Rule] = ACL) -> tuple[list[str], str]:
     """The path a flow actually travels, and whether the ACL allowed it."""
     path = find_path(g, flow.src, "INTERNET" if flow.dst == "internet" else flow.dst)
     if path is None:
         return [], "UNREACHABLE"
-    verdict = evaluate(flow.src, flow.dst, flow.port)
-    if verdict.action == "DENY":  # travels to the gateway, then dropped
-        gateway = next(i for i, n in enumerate(path) if g.nodes[n]["layer"] == "distribution")
+    verdict = evaluate(flow.src, flow.dst, flow.port, acl)
+    if verdict.action == "DENY":  # travels to its first Layer 3 hop (the gateway), then dropped
+        gateway = next(i for i, n in enumerate(path) if g.nodes[n]["layer"] in L3_LAYERS)
         return path[: gateway + 1], "DENIED"
     return path, "ALLOWED"
 
 
-def link_utilization(g: nx.Graph, flows: list[Flow]) -> pd.DataFrame:
+def link_utilization(g: nx.Graph, flows: list[Flow], acl: list[Rule] = ACL) -> pd.DataFrame:
     load = {tuple(sorted(e)): 0.0 for e in g.edges}
     for flow in flows:
-        path, _ = flow_path(g, flow)
+        path, _ = flow_path(g, flow, acl)
         for a, b in zip(path, path[1:]):
             load[tuple(sorted((a, b)))] += flow.mbps
 

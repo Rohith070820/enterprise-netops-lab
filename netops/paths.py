@@ -12,7 +12,7 @@ def find_path(g: nx.Graph, src: str, dst: str) -> list[str] | None:
     """Shortest path from src to dst, or None if there is no way through."""
     try:
         return nx.shortest_path(g, src, dst)
-    except nx.NetworkXNoPath:
+    except (nx.NetworkXNoPath, nx.NodeNotFound):   # no way through, or one end is powered off
         return None
 
 
@@ -28,6 +28,18 @@ def fail_device(g: nx.Graph, device: str) -> nx.Graph:
     broken = g.copy()
     broken.remove_node(device)
     return broken
+
+
+def degrade_link(g: nx.Graph, a: str, b: str, loss_pct: float = 0.0, latency_ms: float = 0.0) -> nx.Graph:
+    """Return a copy of the network where the cable between a and b works, but badly.
+
+    Not every problem is about load. A dirty or failing optic corrupts frames (loss),
+    and a struggling internet provider adds delay, even when the link is nearly empty.
+    """
+    damaged = g.copy()
+    damaged.edges[a, b]["extra_loss_pct"] = loss_pct
+    damaged.edges[a, b]["extra_latency_ms"] = latency_ms
+    return damaged
 
 
 def show(label: str, path: list[str] | None) -> None:

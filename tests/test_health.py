@@ -1,4 +1,5 @@
 from netops.health import build_baseline, latency_ms, link_health, loss_pct, path_experience, status
+from netops.paths import degrade_link, fail_device
 from netops.telemetry import Flow, generate_flows
 from netops.topology import build_campus
 
@@ -21,6 +22,12 @@ def test_status_thresholds():
     assert status(96, 9.6) == "CRITICAL"
 
 
+def test_delay_alone_can_make_a_link_unhealthy():
+    assert status(20, 0, latency=10) == "OK"
+    assert status(20, 0, latency=60) == "WARNING"
+    assert status(20, 0, latency=160) == "CRITICAL"          # past the 150 ms voice limit
+
+
 def test_big_download_turns_engineering_uplink_critical():
     g = build_campus()
     big = Flow("eng-pc-1", "eng-srv", "huge-download", 450.0)
@@ -41,3 +48,19 @@ def test_baseline_captures_normal_range():
     base = build_baseline(build_campus()).set_index("link")
     assert 40 < base.loc["ACCESS-2<->DIST-1", "normal_util_pct"] < 60
     assert base.loc["ACCESS-2<->DIST-1", "normal_spread"] > 0
+
+
+def test_no_path_means_nothing_arrives():
+    g = fail_device(build_campus(), "CORE")
+    assert path_experience(g, link_health(g, []), "eng-pc-1", "eng-srv") == {"latency_ms": None, "loss_pct": 100.0}
+
+
+def test_physical_fault_adds_loss_and_delay_without_adding_load():
+    g = build_campus()
+    flows = generate_flows(seed=42)
+    bad = degrade_link(g, "ACCESS-1", "DIST-1", loss_pct=8.0, latency_ms=3.0)
+    before = link_health(g, flows).set_index("link").loc["ACCESS-1<->DIST-1"]
+    after = link_health(bad, flows).set_index("link").loc["ACCESS-1<->DIST-1"]
+    assert after["utilization_pct"] == before["utilization_pct"]
+    assert after["loss_pct"] == 8.0 and after["latency_ms"] == before["latency_ms"] + 3.0
+    assert (before["status"], after["status"]) == ("OK", "CRITICAL")

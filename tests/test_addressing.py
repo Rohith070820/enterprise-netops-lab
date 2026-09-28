@@ -34,3 +34,8 @@ def test_ip_maps_to_the_right_vlan():
 def test_same_subnet_goes_direct_different_subnet_needs_router():
     assert needs_router("10.10.10.25", "10.10.10.40") is False
     assert needs_router("10.10.10.25", "10.10.20.5") is True
+
+
+def test_addresses_outside_the_campus_always_need_the_router():
+    assert needs_router("8.8.8.8", "1.1.1.1") is True        # not "the same subnet" just because neither is ours
+    assert needs_router("10.10.10.25", "8.8.8.8") is True

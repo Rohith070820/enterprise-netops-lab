@@ -48,8 +48,12 @@ def vlan_for_ip(ip: str) -> Vlan | None:
 
 
 def needs_router(src_ip: str, dst_ip: str) -> bool:
-    """Different subnets can't talk directly; traffic must go through the gateway."""
-    return vlan_for_ip(src_ip) != vlan_for_ip(dst_ip)
+    """Different subnets can't talk directly; traffic must go through the gateway.
+
+    An address outside the campus is never "our subnet", so reaching it always needs the router.
+    """
+    src, dst = vlan_for_ip(src_ip), vlan_for_ip(dst_ip)
+    return src is None or dst is None or src != dst
 
 
 if __name__ == "__main__":

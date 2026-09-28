@@ -34,6 +34,12 @@ def test_endpoint_ports_are_access_and_switch_links_are_trunks():
     assert port_mode(g, "ACCESS-1", "DIST-1") == "trunk"
 
 
+def test_links_to_the_router_are_routed_ports_that_carry_no_vlans():
+    g, inv = setup()
+    for a, b in (("CORE", "EDGE"), ("EDGE", "INTERNET")):
+        assert port_mode(g, a, b) == "routed" and vlans_on_link(g, inv, a, b) == []
+
+
 def test_access_port_carries_one_vlan_uplink_carries_only_its_switchs_vlans():
     g, inv = setup()
     assert vlans_on_link(g, inv, "ACCESS-1", "fin-pc-1") == [20]
