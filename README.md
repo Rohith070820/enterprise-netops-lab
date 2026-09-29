@@ -110,8 +110,6 @@ python -m netops.stp                    # spanning tree: designed, default, fail
 | `packet_loss` | Faulty optic, 8% loss at 17.5% load | Physical fault, not congestion |
 | `high_latency` | Provider routing problem, +150 ms | Provider issue; internal apps unaffected |
 
-## Screenshots
-![Dashboard: congested uplink scenario](docs/dashboard.png)
 
 ## Product Metrics
 | Metric | What it measures | In this project |
