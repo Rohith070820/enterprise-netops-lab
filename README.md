@@ -14,36 +14,12 @@ Enterprise networks keep getting more complex, while troubleshooting stays slow 
 > If network telemetry can automatically identify probable causes and explain network problems in plain language, network administrators may reduce troubleshooting time and make faster operational decisions.
 
 ## Architecture
-```mermaid
-flowchart TD
-    S[Scenario injector<br/>link cut · congestion · rogue IoT · bad optic · slow ISP] --> M
-    M[Network model<br/>NetworkX graph · 7 VLANs · MAC/IP · STP] --> T
-    S --> T
-    T[Traffic + policy<br/>flows follow real paths · first-match ACL] --> H
-    H[Telemetry<br/>utilization · latency · loss · 20-sample baseline] --> D
-    D[Detection<br/>thresholds + baseline deviation] --> R
-    R[Root-cause engine<br/>ordered correlation rules] --> F
-    F[Structured finding<br/>problem · cause · evidence · impact · action · confidence] --> X
-    F --> UI[Streamlit dashboard]
-    X[Explanation layer<br/>template by default · optional LLM with grounding check] --> UI
-    M --> UI
-```
+![Architecture: simulate, analyze, present](docs/architecture.png)
+
 Everything up to the **structured finding** is analytics. The explanation layer and the dashboard only present it; remove the LLM and the diagnosis is identical.
 
 ## Enterprise Network Topology
-```
-                     INTERNET
-                        |            WAN 1 Gbps
-                  EDGE ROUTER        NAT to one public IP
-                        |
-                  CORE SWITCH ─── eng-srv · fin-srv · hr-srv   (VLAN 60)
-                  /          \
-            DIST-1 ────────── DIST-2   Layer 3 gateways, ACLs  (10 Gbps backbone)
-              |    \        /    |
-              |      \    /      |     each access switch is dual-homed (1 Gbps);
-           ACCESS-1    ACCESS-2        spanning tree blocks one uplink each
-        HR  Finance  AP   Engineering  IoT camera  Guest
-```
+![Campus topology](docs/topology.png)
 
 ## Networking Concepts Demonstrated
 | Area | Concepts | Where |
