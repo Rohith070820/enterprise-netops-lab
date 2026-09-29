@@ -36,3 +36,12 @@ def test_reset_returns_to_normal():
     at.sidebar.radio[0].set_value("rogue_iot").run()
     at.sidebar.button[0].click().run()
     assert at.sidebar.radio[0].value == "normal"
+
+
+
+
+def test_plain_english_summary_is_shown(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    at = app().run()
+    at.sidebar.radio[0].set_value("packet_loss").run()
+    assert any("most likely reason" in i.value for i in at.info)

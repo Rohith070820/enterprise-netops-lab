@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from netops.addressing import VLANS
+from netops.explain import explain
 from netops.inventory import build_inventory
 from netops.policy import ACL, DEMO_FLOWS, evaluate
 from netops.rca import EXPECTED, correlate, detect
@@ -47,6 +48,12 @@ def load(name: str):
     finding = correlate(result, detect(result, normal))
     blocked = compute_stp(result["graph"])["blocked"]
     return result, finding, blocked
+
+
+@st.cache_data(show_spinner=False)
+def summary(name: str) -> tuple[str, str]:
+    """Plain-English version of the finding (LLM if configured, template otherwise)."""
+    return explain(load(name)[1])
 
 
 def topology_figure(result: dict, blocked: list[tuple[str, str]]) -> go.Figure:
@@ -143,6 +150,13 @@ with tab_rca:
             st.caption(("✅ Matches" if ok else "❌ Does not match") +
                        f" the scenario's known cause: {expected[0]} at {expected[1]}")
     st.caption("Deterministic rule-based engine (netops/rca.py). No AI is used to reach this diagnosis.")
+
+    st.subheader("Plain-English summary")
+    text, source = summary(choice)
+    st.info(text)
+    st.caption("Phrased by an LLM from the finding above; every number was checked against the evidence."
+               if source == "llm" else
+               "Template summary. Set ANTHROPIC_API_KEY to let an LLM phrase it; the diagnosis does not change.")
 
 # ---------------------------------------------------------------- health
 with tab_health:
