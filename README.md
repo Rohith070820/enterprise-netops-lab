@@ -1,5 +1,7 @@
 # AI-Assisted Enterprise Network Operations Lab
 
+**🔗 Live demo:** https://rohith-enterprise-netops-lab.streamlit.app
+
 A vendor-neutral **digital twin of an enterprise campus network** that you can break on purpose and have diagnosed automatically. It models switches, VLANs, subnets, ACLs and spanning tree; derives telemetry from simulated traffic; and uses a deterministic root-cause engine to explain what went wrong, who is affected and what to do. An optional LLM only rephrases the engine's finding.
 
 > **The inputs are simulated; the reasoning is real.** Paths, failover, spanning tree, ACL decisions, utilization, latency, loss and root cause are all computed from the model. No dashboard number is random.
